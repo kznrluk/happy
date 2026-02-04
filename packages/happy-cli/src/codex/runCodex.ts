@@ -418,6 +418,12 @@ export async function runCodex(opts: {
         }
     });
     client.setPermissionHandler(permissionHandler);
+    client.setPermissionDecisionHandler((decision) => {
+        if (decision === 'abort') {
+            logger.debug('[Codex] Permission decision=abort; aborting current turn');
+            void handleAbort();
+        }
+    });
     client.setHandler((msg) => {
         logger.debug(`[Codex] MCP message: ${JSON.stringify(msg)}`);
 
@@ -474,6 +480,15 @@ export async function runCodex(opts: {
         if (msg.type === 'agent_reasoning') {
             // Complete the reasoning section - tool results or reasoning messages sent via callback
             reasoningProcessor.complete(msg.text);
+        }
+        if (msg.type === 'exec_approval_request') {
+            let { call_id, ...inputs } = msg;
+            client.trackExecApprovalRequest({
+                callId: call_id,
+                command: Array.isArray((inputs as any).command) ? (inputs as any).command : undefined,
+                cwd: typeof (inputs as any).cwd === 'string' ? (inputs as any).cwd : undefined,
+                reason: (inputs as any).reason ?? null
+            });
         }
         if (msg.type === 'patch_apply_begin') {
             // Handle the start of a patch operation
